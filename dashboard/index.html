@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeCom Bot Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #232734;
+  --border: #2e3348; --text: #e0e2ec; --text2: #8b8fa8;
+  --green: #34d399; --red: #f87171; --yellow: #fbbf24;
+  --blue: #60a5fa; --purple: #a78bfa; --cyan: #22d3ee;
+  --pink: #f472b6; --orange: #fb923c;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+
+/* === Top Bar === */
+.topbar { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.topbar h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.status-dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-dot.off { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.status-text { font-size: 13px; color: var(--text2); }
+.status-text b { color: var(--text); }
+.uptime { font-size: 12px; color: var(--text2); margin-left: auto; }
+
+/* === Main Layout === */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* === Left: Message Log === */
+.log-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+.panel-header { padding: 10px 16px; font-size: 13px; font-weight: 600; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.panel-header span { color: var(--text2); font-weight: 400; }
+.log-list { flex: 1; overflow-y: auto; padding: 8px 12px; scroll-behavior: smooth; }
+.log-list::-webkit-scrollbar { width: 6px; }
+.log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.log-item { padding: 8px 12px; margin-bottom: 4px; border-radius: 6px; background: var(--surface); border-left: 3px solid var(--border); font-size: 13px; line-height: 1.5; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+
+.log-item.inbound { border-left-color: var(--blue); }
+.log-item.outbound { border-left-color: var(--green); }
+.log-item.event { border-left-color: var(--purple); }
+.log-item.push { border-left-color: var(--orange); }
+.log-item.heartbeat-item { border-left-color: var(--yellow); background: transparent; padding: 4px 12px; font-size: 12px; color: var(--text2); }
+
+.log-time { color: var(--text2); font-size: 11px; margin-right: 8px; font-family: 'Consolas', monospace; }
+.log-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; margin-right: 6px; }
+.tag-text { background: #1e3a5f; color: var(--blue); }
+.tag-image { background: #1e3a2f; color: var(--green); }
+.tag-voice { background: #3a2f1e; color: var(--yellow); }
+.tag-file { background: #3a1e2f; color: var(--pink); }
+.tag-mixed { background: #2f1e3a; color: var(--purple); }
+.tag-event { background: #2f1e3a; color: var(--purple); }
+.tag-stream { background: #1e3a3a; color: var(--cyan); }
+.tag-card { background: #3a2f1e; color: var(--orange); }
+.tag-push { background: #3a1e1e; color: var(--red); }
+.tag-system { background: #2a2a3a; color: var(--text2); }
+
+.log-user { color: var(--cyan); font-weight: 500; }
+.log-chatid { color: var(--text2); font-size: 11px; background: var(--surface2); padding: 1px 5px; border-radius: 3px; margin-left: 6px; cursor: pointer; }
+.log-chatid:hover { color: var(--text); }
+.log-content { color: var(--text); word-break: break-all; }
+.log-detail { color: var(--text2); font-size: 12px; margin-top: 2px; }
+.log-preview { margin-top: 6px; }
+.log-preview img { max-width: 280px; max-height: 200px; border-radius: 6px; cursor: pointer; transition: transform 0.2s; }
+.log-preview img:hover { transform: scale(1.5); }
+.log-preview a { color: var(--blue); font-size: 12px; text-decoration: none; }
+.log-preview a:hover { text-decoration: underline; }
+.log-action { display: inline-block; background: var(--surface2); padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-left: 4px; }
+.log-action.approve { color: var(--green); }
+.log-action.reject { color: var(--red); }
+.log-action.detail { color: var(--blue); }
+
+/* === Right Sidebar === */
+.sidebar { width: 360px; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+
+/* History search */
+.search-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.search-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; }
+.search-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.search-row input, .search-row select { flex: 1; padding: 6px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 12px; outline: none; }
+.search-row input:focus, .search-row select:focus { border-color: var(--blue); }
+.btn-sm { padding: 6px 12px; background: var(--blue); color: #fff; border: none; border-radius: 5px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.btn-sm:hover { opacity: 0.85; }
+.search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; }
+.sr-item { padding: 5px 8px; font-size: 12px; border-radius: 4px; background: var(--surface); margin-bottom: 3px; cursor: pointer; }
+.sr-item:hover { background: var(--surface2); }
+.sr-item .sr-time { color: var(--text2); font-family: Consolas, monospace; font-size: 10px; margin-right: 6px; }
+.sr-item .sr-tag { font-size: 10px; font-weight: 600; margin-right: 4px; }
+.sr-item .sr-user { color: var(--cyan); font-size: 11px; }
+.sr-item .sr-content { color: var(--text); }
+.contact-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.contact-chip { padding: 3px 8px; background: var(--surface2); border-radius: 4px; font-size: 11px; color: var(--text2); cursor: pointer; white-space: nowrap; }
+.contact-chip:hover { color: var(--text); }
+.contact-chip .cc-cnt { color: var(--blue); font-weight: 600; margin-left: 3px; }
+
+/* Heartbeat */
+.hb-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.hb-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.hb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hb-card { background: var(--surface); border-radius: 8px; padding: 10px 12px; text-align: center; }
+.hb-card .label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.hb-card .value { font-size: 18px; font-weight: 700; font-family: 'Consolas', monospace; }
+.hb-card .value.green { color: var(--green); }
+.hb-card .value.yellow { color: var(--yellow); }
+
+.hb-bar-wrap { margin-top: 12px; }
+.hb-bar-wrap .label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.hb-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.hb-bar-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 1s linear; }
+.hb-bar-fill.warn { background: var(--yellow); }
+.hb-bar-fill.danger { background: var(--red); }
+
+.hb-log { margin-top: 12px; max-height: 120px; overflow-y: auto; }
+.hb-log-entry { font-size: 11px; color: var(--text2); padding: 2px 0; font-family: 'Consolas', monospace; }
+.hb-log-entry .arrow { color: var(--green); }
+
+/* Quick Actions */
+.quick-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.quick-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-quick { padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; cursor: pointer; text-align: left; transition: border-color 0.2s; }
+.btn-quick:hover { border-color: var(--blue); }
+.btn-quick .btn-quick-title { font-weight: 600; }
+.btn-quick .btn-quick-desc { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+/* Push Form */
+.push-section { padding: 16px; flex: 1; }
+.push-section h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 13px; outline: none; font-family: inherit;
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--blue); }
+.form-group textarea { min-height: 80px; resize: vertical; font-family: 'Consolas', monospace; }
+.form-group select { cursor: pointer; }
+.btn-push {
+  width: 100%; padding: 10px; background: var(--blue); color: #fff; border: none; border-radius: 6px;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+}
+.btn-push:hover { opacity: 0.85; }
+.btn-push:disabled { opacity: 0.4; cursor: not-allowed; }
+.push-result { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px; display: none; }
+.push-result.ok { display: block; background: #0f2918; color: var(--green); }
+.push-result.err { display: block; background: #2f1111; color: var(--red); }
+
+.auto-scroll-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--text2); }
+.auto-scroll-toggle input { accent-color: var(--blue); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>WeCom Bot Dashboard</h1>
+  <span class="status-dot off" id="statusDot"></span>
+  <span class="status-text" id="statusText"><b>未连接</b></span>
+  <span class="uptime" id="uptimeText">--</span>
+</div>
+
+<div class="main">
+  <!-- Message Log -->
+  <div class="log-panel">
+    <div class="panel-header">
+      <span>消息日志</span>
+      <span>
+        <span id="msgCount">0</span> 条&nbsp;&nbsp;
+        <label class="auto-scroll-toggle"><input type="checkbox" id="autoScroll" checked> 自动滚动</label>
+      </span>
+    </div>
+    <div class="log-list" id="logList"></div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <div class="sidebar">
+    <!-- Heartbeat -->
+    <div class="hb-section">
+      <h3>心跳监控</h3>
+      <div class="hb-grid">
+        <div class="hb-card">
+          <div class="label">心跳次数</div>
+          <div class="value green" id="hbCount">0</div>
+        </div>
+        <div class="hb-card">
+          <div class="label">距上次 ACK</div>
+          <div class="value" id="hbSince">--</div>
+        </div>
+        <div class="hb-card">
+          <div class="label">上次发送</div>
+          <div class="value yellow" id="hbLastSent">--</div>
+        </div>
+        <div class="hb-card">
+          <div class="label">上次 ACK</div>
+          <div class="value green" id="hbLastAck">--</div>
+        </div>
+      </div>
+      <div class="hb-bar-wrap">
+        <div class="label">心跳倒计时 <span id="hbCountdown">--</span>s</div>
+        <div class="hb-bar"><div class="hb-bar-fill" id="hbBarFill" style="width: 100%"></div></div>
+      </div>
+      <div class="hb-log" id="hbLog"></div>
+    </div>
+
+    <!-- History Search -->
+    <div class="search-section">
+      <h3><span>历史查询</span><span id="searchTotal" style="color:var(--text2);font-weight:400"></span></h3>
+      <div class="search-row">
+        <input type="text" id="searchKeyword" placeholder="搜索关键词" onkeydown="if(event.key==='Enter')doSearch()">
+        <select id="searchMsgtype">
+          <option value="">全部类型</option>
+          <option value="text">文本</option>
+          <option value="image">图片</option>
+          <option value="voice">语音</option>
+          <option value="file">文件</option>
+          <option value="mixed">混排</option>
+          <option value="stream">流式</option>
+          <option value="template_card">卡片</option>
+          <option value="event">事件</option>
+          <option value="system">系统</option>
+        </select>
+        <button class="btn-sm" onclick="doSearch()">搜索</button>
+      </div>
+      <div class="contact-chips" id="contactChips"></div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <!-- Quick Test Actions -->
+    <div class="quick-section">
+      <h3>快捷测试指令</h3>
+      <div class="quick-grid">
+        <button class="btn-quick" onclick="quickPush('markdown_weekly')"><div class="btn-quick-title">Markdown 周报</div><div class="btn-quick-desc">复杂表格+列表</div></button>
+        <button class="btn-quick" onclick="quickPush('card_approve')"><div class="btn-quick-title">审批卡片</div><div class="btn-quick-desc">button_interaction</div></button>
+        <button class="btn-quick" onclick="quickPush('card_news')"><div class="btn-quick-title">图文卡片</div><div class="btn-quick-desc">news_notice</div></button>
+        <button class="btn-quick" onclick="quickPush('card_vote')"><div class="btn-quick-title">投票卡片</div><div class="btn-quick-desc">vote_interaction</div></button>
+        <button class="btn-quick" onclick="quickPush('card_multi')"><div class="btn-quick-title">多选卡片</div><div class="btn-quick-desc">multiple_interaction</div></button>
+        <button class="btn-quick" onclick="quickPush('card_text')"><div class="btn-quick-title">通知卡片</div><div class="btn-quick-desc">text_notice</div></button>
+      </div>
+    </div>
+
+    <!-- Push -->
+    <div class="push-section">
+      <h3>主动推送</h3>
+      <div class="form-group">
+        <label>目标 ID (userid / chatid)</label>
+        <input type="text" id="pushChatId" placeholder="输入 userid 或 chatid">
+      </div>
+      <div class="form-group">
+        <label>消息类型</label>
+        <select id="pushMsgType">
+          <option value="markdown">Markdown</option>
+          <option value="template_card">模板卡片 (JSON)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>消息内容</label>
+        <textarea id="pushContent" placeholder="输入 Markdown 内容或卡片 JSON"></textarea>
+      </div>
+      <button class="btn-push" id="btnPush" onclick="doPush()">发送推送</button>
+      <div class="push-result" id="pushResult"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let status = { connected: false, authenticated: false, heartbeat_interval: 30000, start_time: 0 };
+let lastHbSent = 0, lastHbAck = 0;
+let msgCountNum = 0;
+
+// SSE
+function connectSSE() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('init', e => {
+    const d = JSON.parse(e.data).data;
+    Object.assign(status, d);
+    updateTopbar();
+  });
+  es.onmessage = e => {
+    const { type, data } = JSON.parse(e.data);
+    handleEvent(type, data);
+  };
+  es.onerror = () => {
+    $('statusDot').className = 'status-dot off';
+    $('statusText').innerHTML = '<b>SSE 断开</b>，重连中...';
+  };
+}
+
+function handleEvent(type, data) {
+  switch (type) {
+    case 'status':
+      Object.assign(status, data);
+      updateTopbar();
+      break;
+    case 'message':
+      addLogEntry(data);
+      break;
+    case 'reply':
+      addLogEntry(data);
+      break;
+    case 'heartbeat':
+      addHeartbeat(data);
+      break;
+  }
+}
+
+function updateTopbar() {
+  const dot = $('statusDot');
+  const txt = $('statusText');
+  if (status.connected && status.authenticated) {
+    dot.className = 'status-dot on';
+    txt.innerHTML = '<b>已连接</b> · 已认证';
+  } else if (status.connected) {
+    dot.className = 'status-dot on';
+    txt.innerHTML = '<b>已连接</b> · 认证中';
+  } else {
+    dot.className = 'status-dot off';
+    txt.innerHTML = '<b>未连接</b>';
+  }
+}
+
+// Uptime ticker
+setInterval(() => {
+  if (status.start_time) {
+    const s = Math.floor(Date.now() / 1000 - status.start_time);
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    $('uptimeText').textContent = `运行 ${h > 0 ? h + 'h ' : ''}${m}m ${sec}s`;
+  }
+}, 1000);
+
+// Heartbeat countdown
+setInterval(() => {
+  const now = Date.now() / 1000;
+  const interval = status.heartbeat_interval / 1000;
+
+  // since last ack
+  if (lastHbAck > 0) {
+    const since = now - lastHbAck;
+    $('hbSince').textContent = since < 60 ? Math.floor(since) + 's' : Math.floor(since / 60) + 'm';
+  }
+
+  // countdown bar
+  if (lastHbSent > 0 && interval > 0) {
+    const elapsed = now - lastHbSent;
+    const remain = Math.max(0, interval - elapsed);
+    const pct = (remain / interval) * 100;
+    $('hbBarFill').style.width = pct + '%';
+    $('hbBarFill').className = 'hb-bar-fill' + (pct < 20 ? ' danger' : pct < 50 ? ' warn' : '');
+    $('hbCountdown').textContent = remain.toFixed(0);
+  }
+
+  $('hbCount').textContent = status.heartbeat_count || 0;
+}, 1000);
+
+// Log
+function addLogEntry(msg) {
+  msgCountNum++;
+  $('msgCount').textContent = msgCountNum;
+
+  const list = $('logList');
+  const div = document.createElement('div');
+
+  const direction = msg.direction || 'inbound';
+  const cls = direction === 'push' ? 'push' : direction === 'outbound' ? 'outbound' : msg.msgtype === 'event' ? 'event' : 'inbound';
+  div.className = `log-item ${cls}`;
+
+  const time = msg.time ? new Date(msg.time * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+  const user = msg.user || '';
+  const chatid = msg.chatid || '';
+  const msgtype = msg.msgtype || '';
+  const content = msg.content || '';
+  const detail = msg.detail || '';
+  const fileUrl = msg.file_url || '';
+
+  const tagCls = {
+    text: 'tag-text', image: 'tag-image', voice: 'tag-voice', file: 'tag-file',
+    mixed: 'tag-mixed', stream: 'tag-stream', template_card: 'tag-card',
+    event: 'tag-event', push: 'tag-push', system: 'tag-system',
+  }[msgtype] || 'tag-system';
+
+  const tagLabel = {
+    text: '文本', image: '图片', voice: '语音', file: '文件',
+    mixed: '混排', stream: '流式', template_card: '卡片',
+    event: '事件', push: '推送', system: '系统',
+  }[msgtype] || msgtype;
+
+  // File preview HTML
+  let previewHtml = '';
+  if (fileUrl) {
+    const ext = fileUrl.split('.').pop().toLowerCase();
+    const imgExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+    if (imgExts.includes(ext)) {
+      previewHtml = `<div class="log-preview"><img src="${escHtml(fileUrl)}" onclick="window.open(this.src)" title="点击查看大图"></div>`;
+    } else {
+      const fname = fileUrl.split('/').pop();
+      previewHtml = `<div class="log-preview"><a href="${escHtml(fileUrl)}" target="_blank">📎 ${escHtml(fname)}</a></div>`;
+    }
+  }
+
+  // Chatid — clickable to copy to push input
+  const chatidHtml = chatid ? `<span class="log-chatid" onclick="copyChatid('${escHtml(chatid)}')" title="点击复制到推送区">${escHtml(chatid)}</span>` : '';
+
+  // Highlight button actions in event messages
+  let contentHtml = escHtml(content);
+  const actionMatch = content.match(/点击了「(.+?)」按钮/);
+  if (actionMatch) {
+    const btn = actionMatch[1];
+    const cls = btn === '通过' ? 'approve' : btn === '驳回' ? 'reject' : 'detail';
+    contentHtml = contentHtml.replace(`点击了「${btn}」按钮`, `点击了 <span class="log-action ${cls}">${escHtml(btn)}</span> 按钮`);
+  }
+
+  div.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-tag ${tagCls}">${tagLabel}</span>
+    ${user ? `<span class="log-user">${escHtml(user)}</span>` : ''}${chatidHtml}
+    <span class="log-content">${contentHtml}</span>
+    ${detail ? `<div class="log-detail">${escHtml(detail)}</div>` : ''}
+    ${previewHtml}
+  `;
+
+  list.appendChild(div);
+
+  if ($('autoScroll').checked) {
+    list.scrollTop = list.scrollHeight;
+  }
+
+  while (list.children.length > 500) list.removeChild(list.firstChild);
+}
+
+function copyChatid(id) {
+  $('pushChatId').value = id;
+  // Flash feedback
+  const el = $('pushChatId');
+  el.style.borderColor = 'var(--green)';
+  setTimeout(() => el.style.borderColor = '', 800);
+}
+
+function addHeartbeat(hb) {
+  const t = new Date(hb.time * 1000).toLocaleTimeString();
+  const arrow = hb.direction === 'sent' ? '<span class="arrow">&#9650;</span>' : '<span style="color: var(--green)">&#9660;</span>';
+  const label = hb.direction === 'sent' ? 'PING' : 'ACK';
+
+  if (hb.direction === 'sent') lastHbSent = hb.time;
+  if (hb.direction === 'ack') lastHbAck = hb.time;
+
+  const log = $('hbLog');
+  const div = document.createElement('div');
+  div.className = 'hb-log-entry';
+  div.innerHTML = `${t} ${arrow} ${label} ${hb.detail || ''}`;
+  log.insertBefore(div, log.firstChild);
+  while (log.children.length > 20) log.removeChild(log.lastChild);
+}
+
+// Quick push presets
+const PRESETS = {
+  markdown_weekly: {
+    msgtype: "markdown",
+    content: `## 📊 第23周项目周报
+
+> **部门**: 技术研发中心 | **日期**: 2026-04-22
+
+### 一、本周进展
+
+| 模块 | 进度 | 负责人 | 状态 |
+|------|------|--------|------|
+| 用户系统 | 85% | 张三 | 🟢 正常 |
+| 支付网关 | 62% | 李四 | 🟡 风险 |
+| 数据中台 | 100% | 王五 | ✅ 完成 |
+| AI 推荐 | 40% | 赵六 | 🔴 延期 |
+
+### 二、关键指标
+
+- **DAU**: \`128,456\` ↑12.3%
+- **接口 P99**: \`234ms\` ↓8.7%
+
+### 三、下周计划
+
+1. 完成支付网关联调
+2. AI 推荐灰度发布
+
+---\n*由 WeCom Bot Dashboard 推送*`
+  },
+  card_approve: {
+    msgtype: "template_card",
+    content: JSON.stringify({
+      card_type: "button_interaction",
+      task_id: "approve_" + Date.now(),
+      source: { icon_url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0", desc: "审批系统" },
+      main_title: { title: "【待审批】服务器资源扩容申请" },
+      sub_title_text: "申请人: 张三 | 部门: 技术研发中心",
+      emphasis_content: { desc: "¥128,000 / 月", title: "预算金额" },
+      horizontal_content_list: [
+        { keyname: "申请编号", value: "SRV-2026-0422" },
+        { keyname: "资源类型", value: "GPU 云服务器 A100 ×8" },
+        { keyname: "用途说明", value: "AI 训练集群扩容" },
+        { keyname: "期望上线", value: "2026-05-01" }
+      ],
+      card_action: { type: 1, url: "https://work.weixin.qq.com" },
+      button_list: [
+        { text: "通过", style: 1, key: "approve" },
+        { text: "驳回", style: 2, key: "reject" },
+        { text: "查看详情", style: 3, key: "detail" }
+      ]
+    }, null, 2)
+  },
+  card_news: {
+    msgtype: "template_card",
+    content: JSON.stringify({
+      card_type: "news_notice",
+      task_id: "news_" + Date.now(),
+      source: { icon_url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0", desc: "技术博客" },
+      main_title: { title: "用 Python 构建企业微信智能机器人" },
+      card_image: { url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0" },
+      sub_title_text: "本文介绍了基于 WebSocket 长连接的机器人 SDK 开发实践...",
+      horizontal_content_list: [
+        { keyname: "作者", value: "技术团队" },
+        { keyname: "阅读量", value: "2.4w" }
+      ],
+      card_action: { type: 1, url: "https://work.weixin.qq.com" },
+      button_list: [
+        { text: "阅读全文", style: 1, key: "read" },
+        { text: "收藏", style: 3, key: "bookmark" }
+      ]
+    }, null, 2)
+  },
+  card_vote: {
+    msgtype: "template_card",
+    content: JSON.stringify({
+      card_type: "vote_interaction",
+      task_id: "vote_" + Date.now(),
+      source: { icon_url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0", desc: "投票" },
+      main_title: { title: "最佳编程语言投票" },
+      checkbox: {
+        question_key: "vote_lang",
+        option_list: [
+          { id: "py", text: "Python 🐍" },
+          { id: "go", text: "Go 🐹" },
+          { id: "rs", text: "Rust 🦀" },
+          { id: "js", text: "JavaScript ⚡" }
+        ],
+        mode: 0
+      },
+      submit_button: { text: "提交投票", key: "submit_vote" }
+    }, null, 2)
+  },
+  card_multi: {
+    msgtype: "template_card",
+    content: JSON.stringify({
+      card_type: "multiple_interaction",
+      task_id: "multi_" + Date.now(),
+      source: { icon_url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0", desc: "调研" },
+      main_title: { title: "功能优先级调研（多选）" },
+      select_list: [
+        {
+          question_key: "feat_priority",
+          title: { text: "请选择优先开发的功能" },
+          option_list: [
+            { id: "1", text: "实时协作编辑" },
+            { id: "2", text: "AI 智能推荐" },
+            { id: "3", text: "离线模式" }
+          ]
+        }
+      ],
+      button_list: [
+        { text: "确认提交", style: 1, key: "submit_multi" }
+      ]
+    }, null, 2)
+  },
+  card_text: {
+    msgtype: "template_card",
+    content: JSON.stringify({
+      card_type: "text_notice",
+      task_id: "notice_" + Date.now(),
+      source: { icon_url: "https://wework.qpic.cn/wwpic/252813_j2n94gDpKdoWn2T_1703694978/0", desc: "系统通知" },
+      main_title: { title: "系统维护通知" },
+      emphasis_content: { desc: "预计 2 小时", title: "维护时间" },
+      sub_title_text: "2026-04-23 02:00-04:00 进行系统升级，届时服务将短暂不可用",
+      horizontal_content_list: [
+        { keyname: "影响范围", value: "全部服务" },
+        { keyname: "状态", value: "计划中" }
+      ],
+      card_action: { type: 1, url: "https://work.weixin.qq.com" }
+    }, null, 2)
+  }
+};
+
+function quickPush(preset) {
+  const chatid = $('pushChatId').value.trim();
+  if (!chatid) {
+    $('pushResult').className = 'push-result err';
+    $('pushResult').style.display = 'block';
+    $('pushResult').textContent = '请先填写目标 ID（可在消息日志中点击 chatid 自动填入）';
+    return;
+  }
+  const p = PRESETS[preset];
+  $('pushMsgType').value = p.msgtype;
+  $('pushContent').value = p.content;
+  doPush();
+}
+
+// Push
+async function doPush() {
+  const chatid = $('pushChatId').value.trim();
+  const msgtype = $('pushMsgType').value;
+  const content = $('pushContent').value.trim();
+  const result = $('pushResult');
+  const btn = $('btnPush');
+
+  if (!chatid || !content) {
+    result.className = 'push-result err';
+    result.style.display = 'block';
+    result.textContent = '请填写目标 ID 和消息内容';
+    return;
+  }
+
+  btn.disabled = true;
+  result.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatid, msgtype, content }),
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      result.className = 'push-result ok';
+      result.textContent = '推送成功';
+    } else {
+      result.className = 'push-result err';
+      result.textContent = '推送失败: ' + (data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    result.className = 'push-result err';
+    result.textContent = '请求失败: ' + e.message;
+  }
+  result.style.display = 'block';
+  btn.disabled = false;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// History search
+function doSearch() {
+  const keyword = $('searchKeyword').value.trim();
+  const msgtype = $('searchMsgtype').value;
+  const activeChatid = document.querySelector('.contact-chip.active');
+  const chatid = activeChatid ? activeChatid.dataset.chatid : '';
+  const params = new URLSearchParams();
+  if (keyword) params.set('keyword', keyword);
+  if (msgtype) params.set('msgtype', msgtype);
+  if (chatid) params.set('chatid', chatid);
+  params.set('limit', '50');
+
+  fetch('/api/history?' + params).then(r => r.json()).then(data => {
+    $('searchTotal').textContent = `${data.rows.length} / ${data.total}`;
+    const box = $('searchResults');
+    box.innerHTML = '';
+    data.rows.forEach(r => {
+      const t = new Date(r.time * 1000).toLocaleTimeString();
+      const dirIcon = r.direction === 'inbound' ? '&#8592;' : r.direction === 'push' ? '&#8594;' : '&#8593;';
+      const d = document.createElement('div');
+      d.className = 'sr-item';
+      d.innerHTML = `<span class="sr-time">${t}</span>${dirIcon} <span class="sr-tag">${escHtml(r.msgtype)}</span>` +
+        (r.user_id ? `<span class="sr-user">${escHtml(r.user_id)}</span> ` : '') +
+        `<span class="sr-content">${escHtml((r.content || '').substring(0, 60))}</span>`;
+      d.onclick = () => { $('searchKeyword').value = r.content.substring(0, 50); };
+      box.appendChild(d);
+    });
+  }).catch(() => {});
+}
+
+function loadContacts() {
+  fetch('/api/contacts?limit=20').then(r => r.json()).then(data => {
+    const box = $('contactChips');
+    box.innerHTML = '';
+    data.forEach(c => {
+      const label = c.user_id || c.chatid;
+      const short = label.length > 20 ? label.substring(0, 18) + '...' : label;
+      const chip = document.createElement('span');
+      chip.className = 'contact-chip';
+      chip.dataset.chatid = c.chatid;
+      chip.innerHTML = `${escHtml(short)}<span class="cc-cnt">${c.msg_count}</span>`;
+      chip.title = `userid: ${c.user_id}\nchatid: ${c.chatid}\n消息数: ${c.msg_count}`;
+      chip.onclick = () => {
+        document.querySelectorAll('.contact-chip').forEach(el => el.classList.remove('active'));
+        chip.classList.add('active');
+        chip.style.background = 'var(--blue)';
+        chip.style.color = '#fff';
+        $('pushChatId').value = c.chatid;
+        doSearch();
+      };
+      box.appendChild(chip);
+    });
+  }).catch(() => {});
+}
+
+// Init
+connectSSE();
+
+// Load history
+fetch('/api/messages').then(r => r.json()).then(msgs => {
+  msgs.forEach(m => addLogEntry(m));
+}).catch(() => {});
+
+// Load contacts
+loadContacts();
+
+// Load initial status
+fetch('/api/status').then(r => r.json()).then(s => {
+  Object.assign(status, s);
+  updateTopbar();
+}).catch(() => {});
+</script>
+</body>
+</html>

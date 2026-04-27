@@ -1,0 +1,9 @@
+aiohttp>=3.9
+certifi>=2023.0
+cryptography>=42.0
+pysqlite3>=0.5
+pyee>=11.0
+python-dotenv>=1.0
+websockets>=12.0
+pytest>=8.0
+pytest-asyncio>=0.21
